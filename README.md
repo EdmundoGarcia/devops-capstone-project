@@ -1,3 +1,13 @@
+# devops-capstone-project
+
+This project is going to wrap up all of the journey done in this series of courses offered by IBM and Coursera.
+
+First, we will begin with the sprint planning.  
+Then we will start developing the microservice using test driven development (TDD).
+Aafter that, we will configure a GitHub Actions CI pipeline. 
+Next, we will containerize the flask application with Docker. This will be needed in order to deploy it to Kubernetes.
+So that, we can create a Tekton Continuous Deployment pipeline so we don't have to interfere manually to get deployments ready automatically.
+
 # DevOps Capstone Template
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
