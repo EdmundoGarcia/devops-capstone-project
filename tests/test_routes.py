@@ -8,16 +8,17 @@ Test cases can be run with the following:
 import os
 import logging
 from unittest import TestCase
-from tests.factories import AccountFactory
 from service.common import status  # HTTP Status Codes
 from service.models import db, Account, init_db
-from service.routes import app
+from service import app, talisman
+from tests.factories import AccountFactory
 
 DATABASE_URI = os.getenv(
     "DATABASE_URI", "postgresql://postgres:postgres@localhost:5432/postgres"
 )
 
 BASE_URL = "/accounts"
+HTTPS_ENVIRON = {"wsgi.url_scheme": "https"}
 
 
 ######################################################################
@@ -32,8 +33,11 @@ class TestAccountService(TestCase):
         app.config["TESTING"] = True
         app.config["DEBUG"] = False
         app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URI
+        # pylint: disable=no-member
         app.logger.setLevel(logging.CRITICAL)
+        # pylint: enable=no-member
         init_db(app)
+        talisman.force_https = False
 
     @classmethod
     def tearDownClass(cls):
@@ -41,14 +45,18 @@ class TestAccountService(TestCase):
 
     def setUp(self):
         """Runs before each test"""
+        # pylint: disable=no-member
         db.session.query(Account).delete()  # clean up the last tests
         db.session.commit()
+        # pylint: enable=no-member
 
         self.client = app.test_client()
 
     def tearDown(self):
         """Runs once after each test case"""
+        # pylint: disable=no-member
         db.session.remove()
+        # pylint: enable=no-member
 
     ######################################################################
     #  H E L P E R   M E T H O D S
@@ -59,7 +67,10 @@ class TestAccountService(TestCase):
         accounts = []
         for _ in range(count):
             account = AccountFactory()
-            response = self.client.post(BASE_URL, json=account.serialize())
+            # pylint: disable=no-member
+            payload = account.serialize()
+            # pylint: enable=no-member
+            response = self.client.post(BASE_URL, json=payload)
             self.assertEqual(
                 response.status_code,
                 status.HTTP_201_CREATED,
@@ -89,10 +100,11 @@ class TestAccountService(TestCase):
     def test_create_account(self):
         """It should Create a new Account"""
         account = AccountFactory()
+        # pylint: disable=no-member
+        payload = account.serialize()
+        # pylint: enable=no-member
         response = self.client.post(
-            BASE_URL,
-            json=account.serialize(),
-            content_type="application/json"
+            BASE_URL, json=payload, content_type="application/json"
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -116,18 +128,18 @@ class TestAccountService(TestCase):
     def test_unsupported_media_type(self):
         """It should not Create an Account when sending the wrong media type"""
         account = AccountFactory()
-        response = self.client.post(
-            BASE_URL,
-            json=account.serialize(),
-            content_type="test/html"
-        )
+        # pylint: disable=no-member
+        payload = account.serialize()
+        # pylint: enable=no-member
+        response = self.client.post(BASE_URL, json=payload, content_type="test/html")
         self.assertEqual(response.status_code, status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
 
-    # ADD YOUR TEST CASES HERE ...
     def test_read_an_account(self):
-        """This test should read as single account with a specific id if it exists and return 200_OK"""
+        """This test should read a single account and return 200_OK"""
         account = self._create_accounts(1)[0]
-        resp = self.client.get(f"{BASE_URL}/{account.id}", content_type="application/json")
+        resp = self.client.get(
+            f"{BASE_URL}/{account.id}", content_type="application/json"
+        )
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         data = resp.get_json()
@@ -149,7 +161,10 @@ class TestAccountService(TestCase):
     def test_update_account(self):
         """It should update an existing account"""
         test_account = AccountFactory()
-        resp = self.client.post(BASE_URL, json=test_account.serialize())
+        # pylint: disable=no-member
+        payload = test_account.serialize()
+        # pylint: enable=no-member
+        resp = self.client.post(BASE_URL, json=payload)
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
 
         new_account = resp.get_json()
@@ -168,3 +183,23 @@ class TestAccountService(TestCase):
         """It should not allow calling an endpoint with the wrong method call"""
         resp = self.client.delete(BASE_URL)
         self.assertEqual(resp.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_security_headers(self):
+        """It should return the security headers"""
+        resp = self.client.get("/", environ_overrides=HTTPS_ENVIRON)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        headers = {
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'self'; object-src 'none'",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+        }
+        for key, value in headers.items():
+            self.assertEqual(resp.headers.get(key), value)
+
+    def test_cors(self):
+        """It should return a CORS header"""
+        resp = self.client.get("/", environ_overrides=HTTPS_ENVIRON)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(resp.headers.get("Access-Control-Allow-Origin"), "*")
