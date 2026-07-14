@@ -1,5 +1,7 @@
 # devops-capstone-project
 
+![Build Status](https://github.com/EdmundoGarcia/devops-capstone-project/actions/workflows/ci-build.yaml/badge.svg)
+
 This project is going to wrap up all of the journey done in this series of courses offered by IBM and Coursera.
 
 First, we will begin with the sprint planning.  
